@@ -1,26 +1,12 @@
 const nodemailer = require('nodemailer');
 
-// Create reusable transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-/**
- * Send OTP email
- * @param {string} to - recipient email
- * @param {string} otp - plain text OTP
- * @param {'signup' | 'login'} purpose
- */
-async function sendOtpEmail(to, otp, purpose = 'signup') {
+// Build HTML email template
+function buildOtpHtml(otp, purpose) {
   const purposeText = purpose === 'signup'
     ? 'You requested to create an account on CloudinaryWatch.'
     : 'You requested to sign in to your CloudinaryWatch account.';
 
-  const html = `
+  return `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 480px; margin: 0 auto; background: #0f172a; border-radius: 16px; overflow: hidden; border: 1px solid #1e293b;">
       <div style="padding: 32px 24px; text-align: center; background: linear-gradient(135deg, #6366f1, #06b6d4);">
         <h1 style="color: white; margin: 0; font-size: 24px;">CloudinaryWatch</h1>
@@ -40,13 +26,50 @@ async function sendOtpEmail(to, otp, purpose = 'signup') {
       </div>
     </div>
   `;
+}
+
+/**
+ * Send OTP email using Resend (production) or Nodemailer (dev fallback)
+ */
+async function sendOtpEmail(to, otp, purpose = 'signup') {
+  const subject = purpose === 'signup'
+    ? 'Verify your email — CloudinaryWatch'
+    : 'Sign-in verification — CloudinaryWatch';
+  const html = buildOtpHtml(otp, purpose);
+
+  // Use Resend if API key is set (works on Render — uses HTTP, not SMTP)
+  if (process.env.RESEND_API_KEY) {
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const { error } = await resend.emails.send({
+      from: 'CloudinaryWatch <onboarding@resend.dev>',
+      to,
+      subject,
+      html,
+    });
+
+    if (error) {
+      throw new Error(`Resend error: ${error.message}`);
+    }
+    return;
+  }
+
+  // Fallback to Nodemailer/Gmail for local development
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
 
   await transporter.sendMail({
     from: `"CloudinaryWatch" <${process.env.EMAIL_USER}>`,
     to,
-    subject: purpose === 'signup' ? 'Verify your email — CloudinaryWatch' : 'Sign-in verification — CloudinaryWatch',
+    subject,
     html,
   });
 }
 
-module.exports = { transporter, sendOtpEmail };
+module.exports = { sendOtpEmail };
