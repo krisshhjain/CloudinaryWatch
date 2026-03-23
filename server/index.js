@@ -49,15 +49,10 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    callback(new Error('Not allowed by CORS'));
-  },
+  origin: allowedOrigins,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Body parsers with size limits
